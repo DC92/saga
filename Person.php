@@ -23,6 +23,16 @@ class Person {
     if (is_array($id)) $id = self::_id($id);
     if (isset($gedcom['INDI'][$id])) {
       $this->_data = $gedcom['INDI'][$id];
+/*DCMM*/
+		setlocale(LC_ALL, "en_US.utf8");
+		$sans_accent = iconv ('utf-8', 'ascii//TRANSLIT', $this->_data['NAME']['NAME'][0]);
+		$ns = explode ('/', str_replace ("'", '', $sans_accent));
+		$this->_data['MYID'] = strtolower (str_replace ([' ','?'], '_',
+			substr ($ns[0].'___', 0, 3).
+			substr ($ns[1].'___', 0, 3).
+			substr ($this->_data['_ID'].@$this->_data['BIRT']['DATE'][0], -2)
+		));
+/*DCMM*/
       return;
     }
   }
@@ -157,7 +167,7 @@ class Person {
   }
 
   function _partOfName ($part = 'NAME', $link = false, $years = false, $schema = false) {
-    if (!isset($this->_data['NAME'][$part])) return 'unknown';
+    if (!isset($this->_data['NAME'][$part])) return /*DCMM*/ null; // 'unknown';
     $name = trim(preg_replace('/\//', '', $this->_data['NAME'][$part][0]));
     if (!$link) {
       if ($years) return $name . ' ' . $this->years();
@@ -175,10 +185,17 @@ class Person {
     } else {
       $html .= $name;
     }
+/*DCMM*/
+      $trombi = 'trombi/'.$this->_data['MYID'].'.jpg';
+      if (is_file ($trombi))
+        $html .= "<br/><img src='$trombi' />";
+
+      $html .= '</a><br/>';
+/*DCMM*/
     if ($years) {
       $html .= ' ' . $this->years($schema);
     }
-    $html .= '</a>';
+/*DCMM*/ // $html .= '</a>';
     return $html;
   }
 
@@ -191,6 +208,7 @@ class Person {
    * I'll come back to this...
    */
   function link () {
+	/*DCMM*/ return '?'.$this->_data['MYID'];
     return 'http://www.clarkeology.com/names/' . $this->_urlise($this->surname()) . '/' . $this->id() . '/' . $this->_urlise($this->forename());
     // return 'http://www.clarkeology.com/wiki/' . $this->_urlise($this->name());
   }
@@ -374,6 +392,7 @@ class Person {
     if (!isset($this->_data[$type])) return $default;
     if (!isset($this->_data[$type]['PLAC'])) return $default;
     if (!isset($this->_data[$type]['PLAC'][0])) return $default;
+/*DCMM*/ return $itemProp.' '.$this->_data[$type]['PLAC'][0];
     if (!$itemProp) return $this->_data[$type]['PLAC'][0];
     return '<meta itemprop="' . $itemProp . '" content="' . $this->_data[$type]['PLAC'][0] . '" />';
   }
@@ -424,6 +443,7 @@ class Person {
     if ($tag == 'DEAT') return ucfirst(self::i18n('died'));
     if ($tag == 'BURI') return ucfirst(self::i18n('buried'));
     if ($tag == 'OCCU') return ucfirst(self::i18n('occupation'));
+/*DCMM*/if ($tag == 'TITL') return ucfirst(self::i18n('alias'));
     return $tag;
   }
 
@@ -454,6 +474,31 @@ class Person {
     return $html;
   }
 
+/*DCMM*/
+	function ligneInfo ($tag) {
+		$data = @$this->_data[$tag];
+		if ($data) {
+			$texte = [
+				$this->tagToLabel($tag).($this->gender() == 'M' ? '' : 'e'),
+				implode(', ', array_unique($data[$tag])),
+			];
+
+			if (isset ($data['DATE']))
+				$texte[] = (strlen ($this->_date($tag)) == 4 ? 'en' : 'le ').$this->_date($tag);
+
+			$yearDeat = yearDate (@$this->_data['DEAT']);
+			$yearBirt = yearDate (@$this->_data['BIRT']);
+			if ($tag == 'DEAT' && $yearDeat && $yearBirt)
+				$texte[] = 'à '.intval ($yearDeat - $yearBirt).' ans';
+
+			if (isset ($data['PLAC']))
+				$texte[] = 'à '.preg_replace('/[, ]*$/', '', $this->_place($tag));
+
+			return '</p>'.implode (' ', $texte).'</p>';
+		}
+	}
+/*DCMM*/
+
   function tableTree ($schema = false) {
     $html = '<table class="family"';
     // $html .= ' summary="' . $this->name() . ' family tree"';
@@ -483,10 +528,31 @@ class Person {
     $html .= $this->td($this->mother(), 'parent', $c * 4);
     $html .= '</tr>';
     $html .= '<tr>';
+/*DCMM*/
+	// Split de la ligne titulaire de la fiche
+	$c /= 2;
+	$html .= '<td class="self" colspan="' . $c * 8 . '">';
+	// Détails du titulaire
+	$html .= $this->ligneInfo('TITL');
+	$html .= $this->ligneInfo('OCCU');
+	$html .= $this->ligneInfo('BIRT');
+	$html .= $this->ligneInfo('BAPM');
+	$html .= $this->ligneInfo('DEAT');
+	$html .= $this->ligneInfo('BURI');
+	$html .= '</td>';
+/*DCMM*/
     $html .= '<td class="self" colspan="' . $c * 8 . '"';
     $html .= '>';
     if ($schema) $html .= '<span itemprop="name">';
     $html .= $this->name();
+/*DCMM*/
+	// Affichage de l'image du trombinoscope
+	$trombi = 'trombi/'.$this->_data['MYID'].'.jpg';
+	if (is_file ($trombi))
+		$html .= "<br/><img src='$trombi' />";
+
+	if (null) // Pas de dates pour le titulaire
+/*DCMM*/
     if ($schema) {
       $html .= '</span>';
       $html .= ' ' . $this->years(true);
@@ -531,6 +597,7 @@ class Person {
   }
 
   function isPrivate () {
+    /*DCMM*/ return false;
     if (!$this->id()) return false;
     if ($this->id() == 1) return false; // show dad
     if ($this->id() == 7) return false; // show me
@@ -607,6 +674,14 @@ class Person {
    * @todo
    */
   static function i18n ($string) {
+/*DCMM*/
+	if ($string == 'occupation') return 'profession';
+	if ($string == 'alias') return 'dit';
+	if ($string == 'born') return 'né';
+	if ($string == 'baptised') return 'baptisé';
+	if ($string == 'died') return 'décédé';
+	if ($string == 'buried') return 'enterré';
+/*DCMM*/
     return $string;
   }
 

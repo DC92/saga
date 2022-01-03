@@ -1,27 +1,36 @@
-#!/bin/env php
+<link  href="index.css" type="text/css" rel="stylesheet">
+
 <?php
+$id = $_GET ? array_keys($_GET)[0] : 'domcav54';
 
-error_reporting( E_ALL );
-
-if ( ! $argv[1] ) die( 'usage: ' . $argv[0] . ' [gedcom file]' );
-
-require_once __DIR__ . '/Person.php';
-$gedcom = Person::parse( $argv[1] );
-// now the whole gedcom is in a quirky format in $gedcom, try:
-// print_r( $gedcom['INDI']['I1'] );
-// echo $gedcom['INDI']['I1']->name( ) . ' father is ' . $gedcom['INDI']['I1']->father->( )->name( );
-// echo $gedcom['INDI']['I1']->name( ) . ' maternal grandfateher is ' . $gedcom['INDI']['I1']->mother->( )->father( )->name( );
-
-foreach ( $gedcom['INDI'] as $key => $individual ) {
-
-  $person = new Person( $individual, $gedcom );
-
-  // override the link function - come back to this with a better way, a static method maybe?
-  $person->link = function ( ) {
-    return 'http://www.clarkeology.com/names/' . $person->_urlise( $person->surname( )) . '/' . $person->id( ) . '/' . $person->_urlise( $person->forename( ));
-  };
-
-  echo $person->surname( ) . ', ' . $person->forename( ) . ' ' . $person->years( ) . "\n";
-  echo $person->link( ) . "\n";
-
+// Date en année (décimale)
+function yearDate ($date) {
+	if ($date)
+		return strtotime (
+			strlen ($date['DATE'][0]) == 4
+			? '1 JUN '.$date['DATE'][0]
+			: $date['DATE'][0]
+			) / 24 / 3600 / 365.25;
 }
+
+require_once 'Person.php';
+
+// Read gencom
+$gedcom = Person::parse('./base.ged');
+
+// Compute MyId
+$pers = [];
+foreach ($gedcom['INDI'] as $person) {
+	$p =  new Person ($person, $gedcom);
+
+	if (isset ($pers[$p->_data['MYID']]))
+		echo"<pre style='background:white;color:black;font-size:16px'>Doublon {$p->_data['MYID']} = ".
+		var_export($pers[$p->_data->myid]->_data['_ID'].' -- '.$person['_ID'],true).'</pre>'.PHP_EOL;
+
+	$pers[$p->_data['MYID']] = $p;
+}
+
+//*DCMM*/echo"<pre style='background:white;color:black;font-size:16px'>BIRT = ".var_export($pers[$id]->dates('BIRT' ),true).'</pre>'.PHP_EOL;
+//*DCMM*/echo"<pre style='background:white;color:black;font-size:16px'> = ".var_export($pers[$id],true).'</pre>'.PHP_EOL;
+
+echo $pers[$id]->tableTree();
